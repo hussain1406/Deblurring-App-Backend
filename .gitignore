@@ -1,0 +1,9 @@
+.ipynb_checkpoints/
+*.pyc
+*.png
+*.tif
+*.jpg
+*.mat
+*.npy
+.DS_Store
+node_modules
