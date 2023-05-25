@@ -3,6 +3,7 @@ const pathlib = require("path");
 const port = 5500;
 const filesDir = pathlib.join(__dirname, "files");
 const outDir = pathlib.join(__dirname, "output");
+const cleanDir = pathlib.join(__dirname, "clean");
 
 const { exec } = require("child_process");
 const { spawn } = require("child_process");
@@ -32,14 +33,21 @@ const upload = multer({ storage: storage });
 
 let modelName, originalname, processingStatus;
 
-app.use("/clean", express.static("output"));
+app.use("/clean", express.static("clean"));
 app.use(
   cors({
     origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
   })
 );
+let outDirOutput;
 app.get("/app", (req, res) => {
-  res.send({ processingStatus });
+  outDirOutput = readdirSync(outDir);
+
+  if (processingStatus != 0) {
+    res.send({ processingStatus });
+  } else {
+    res.send({ processingStatus, outDirOutput });
+  }
 });
 app.post("/app", upload.single("inputImage"), (req, res) => {
   console.log("got a post request");
@@ -56,17 +64,20 @@ app.post("/app", upload.single("inputImage"), (req, res) => {
   //   "-m",
   //   modelName,
   //   "-i",
-  //   "files",
+  //   filesDir,
   //   "-o",
-  //   "clean",
+  //   cleanDir,
+  //   "-f",
+  //   originalname,
   // ]);
   const pythonOutput = spawn("python", ["--version"]);
 
   pythonOutput.stdout.on("data", (data) => {
     console.log(`stdout: ${data}`);
-    readdirSync(filesDir).forEach((f) => rmSync(`${filesDir}/${f}`));
+    // readdirSync(filesDir).forEach((f) => rmSync(`${filesDir}/${f}`));
   });
 
+  processingStatus = 1;
   pythonOutput.stderr.on("data", (data) => {
     console.log(`stderr: ${data}`);
   });
@@ -80,11 +91,12 @@ app.post("/app", upload.single("inputImage"), (req, res) => {
     console.log(`child process exited with code ${code}`);
     processingStatus = 0;
   });
+  setTimeout(() => {
+    res.status(200).send({ processingStatus, filename: originalname });
+  }, 20000);
   // console.log(execSync(`cp -r --verbose ${filesDir}/ ${outDir}/ `));
   // console.log(execSync(`rm -rf output/ `));
   // readdirSync(outDir).forEach((f) => rmSync(`${outDir}/${f}`));
-  processingStatus = 1;
-  res.status(200).send({ processingStatus });
 });
 
 app.listen(port, () => {
