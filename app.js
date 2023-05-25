@@ -15,6 +15,7 @@ const multer = require("multer");
 const cors = require("cors");
 
 const app = express();
+let modelName, originalname, processingStatus;
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -23,15 +24,16 @@ const storage = multer.diskStorage({
   filename: function (req, file, cb) {
     //* Getting the file Extension from the Original Name
     fileExt = file.originalname.split(".");
+    originalname = fileExt[0].replace(/\W+/g, "_").toLowerCase();
     fileExt = fileExt[fileExt.length - 1];
 
-    cb(null, `${file.fieldname}-${uuidv4()}.${fileExt}`);
+    cb(null, `${originalname}-${uuidv4()}.${fileExt}`);
+    originalname = `${originalname}.${fileExt}`;
+    console.log("The Original Name is " + originalname);
   },
 });
 
 const upload = multer({ storage: storage });
-
-let modelName, originalname, processingStatus;
 
 app.use("/clean", express.static("clean"));
 app.use(
@@ -39,42 +41,29 @@ app.use(
     origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
   })
 );
-let outDirOutput;
-app.get("/app", (req, res) => {
-  outDirOutput = readdirSync(outDir);
-
-  if (processingStatus != 0) {
-    res.send({ processingStatus });
-  } else {
-    res.send({ processingStatus, outDirOutput });
-  }
-});
 app.post("/app", upload.single("inputImage"), (req, res) => {
   console.log("got a post request");
   if (!req.file) {
     res.status(400).send("No file was Uploaded");
   }
   modelName = req.body.modelName;
-  originalname = req.file.originalname;
   console.log(modelName);
   console.log(originalname);
   pythonFile = pathlib.join(__dirname, `Restormer/${modelName}.py`);
-  // const pythonOutput = spawn("python", [
-  //   "manage.py",
-  //   "-m",
-  //   modelName,
-  //   "-i",
-  //   filesDir,
-  //   "-o",
-  //   cleanDir,
-  //   "-f",
-  //   originalname,
-  // ]);
-  const pythonOutput = spawn("python", ["--version"]);
+  const pythonOutput = spawn("python", [
+    "manage.py",
+    "-m",
+    modelName,
+    "-i",
+    filesDir,
+    "-o",
+    cleanDir,
+    "-f",
+    originalname,
+  ]);
 
   pythonOutput.stdout.on("data", (data) => {
     console.log(`stdout: ${data}`);
-    // readdirSync(filesDir).forEach((f) => rmSync(`${filesDir}/${f}`));
   });
 
   processingStatus = 1;
@@ -93,10 +82,9 @@ app.post("/app", upload.single("inputImage"), (req, res) => {
   });
   setTimeout(() => {
     res.status(200).send({ processingStatus, filename: originalname });
-  }, 20000);
-  // console.log(execSync(`cp -r --verbose ${filesDir}/ ${outDir}/ `));
-  // console.log(execSync(`rm -rf output/ `));
-  // readdirSync(outDir).forEach((f) => rmSync(`${outDir}/${f}`));
+  }, 500);
+  console.log(execSync(`cp -r --verbose ${filesDir}/ ${outDir}/ `));
+  readdirSync(outDir).forEach((f) => rmSync(`${filesDir}/${f}`));
 });
 
 app.listen(port, () => {
